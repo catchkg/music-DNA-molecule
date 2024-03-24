@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.sound.min.js"></script>
+    <title>Interactive Audio-Visualizer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #000;
+            color: #fff;
+        }
+
+        #controls {
+            margin: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Interactive Audio-Visual DNA Structure</h1>
+        <p>
+            This interactive experience transforms your music into a visual representation of a DNA molecule. Upload an
+            MP3 file and watch as the digital helix twists and pulses in sync with the rhythm and frequencies of your
+            track. Use the controls to play or pause the visualization.
+        </p>
+    </header>
+    <div id="controls">
+        <input type="file" id="fileInput" accept=".mp3" />
+        <button id="playButton">Play</button>
+        <button id="stopButton">Stop</button>
+    </div>
+    <script>
+        let song;
+        let fft;
+
+        function setup() {
+            createCanvas(300, 350, WEBGL);
+            frameRate(240);
+            fft = new p5.FFT(0.8, 64);
+
+            // File input handling
+            let fileInput = document.getElementById('fileInput');
+            fileInput.addEventListener('change', function (e) {
+                if (this.files && this.files[0]) {
+                    let mp3File = this.files[0];
+                    loadSound(URL.createObjectURL(mp3File), function (soundFile) {
+                        if (song) {
+                            song.stop(); // Stop the currently playing song
+                        }
+                        song = soundFile;
+                        song.play();
+                    });
+                }
+            });
+
+            document.getElementById('playButton').addEventListener('click', function () {
+                if (song && !song.isPlaying()) {
+                    song.play();
+                }
+            });
+
+            document.getElementById('stopButton').addEventListener('click', function () {
+                if (song && song.isPlaying()) {
+                    song.stop();
+                }
+            });
+        }
+
+        function draw() {
+            if (!song) return; // Don't draw anything if the song hasn't been loaded
+
+            background(0);
+
+            let spectrum = fft.analyze();
+
+            // Dynamically generate colors based on the FFT analysis
+            let lowFreq = fft.getEnergy("bass");
+            let midFreq = fft.getEnergy("mid");
+            let highFreq = fft.getEnergy("treble");
+
+            let color1 = color(lowFreq, 100, 150);
+            let color2 = color(100, midFreq, 150);
+            let color3 = color(100, 150, highFreq);
+            let color4 = color(lowFreq, midFreq, highFreq);
+
+            let amplitude = 30;
+            let frequency = 2 / width;
+            let rungSpacing = width / 64;
+            let circleRadius = 0.5;
+            let numWavelengths = 2;
+            let startX = -(width / numWavelengths) / 2;
+            let numRungSegments = 32;
+            let rungSegmentLength = rungSpacing / numRungSegments;
+
+            push();
+            stroke(255);
+            strokeWeight(0.3);
+            translate(0, height / 4.5, -1);
+            line(-100, -25, -1, 100, -25, -1);
+            pop();
+
+            push();
+            translate(20, height / 4, -1);
+            noStroke();
+            for (let i = 0; i <= 200; i++) {
+                let interpColor = lerpColor(lerpColor(color1, color4, i / 200), lerpColor(color2, color3, i / 200), i / 200);
+                fill(interpColor);
+                rect(i * 0.4 - 120, 12, 0.4, -25);
+            }
+            pop();
+
+            let dnaYPos = (height / 3.5 - 150) / 2;
+            translate(30, dnaYPos, 0);
+            rotateY(frameCount * 0.01);
+            rotateZ(radians(45));
+
+            for (let x = startX, i = 0; x <= -startX; x += rungSpacing, i++) {
+                let y1 = amplitude * sin(2 * PI * frequency * (x - startX));
+                let y2 = -y1;
+                push();
+                translate(x, y1, 0);
+                rotateX(HALF_PI);
+                stroke(0);
+                cylinder(circleRadius, 0.1);
+                pop();
+
+                push();
+                translate(x, y2, 0);
+                rotateX(HALF_PI);
+                stroke(0);
+                cylinder(circleRadius, 0.1);
+                pop();
+
+                for (let j = 0; j <= numRungSegments; j++) {
+                    let y = map(j, 0, numRungSegments, y1, y2);
+                    let spectrumValue = spectrum[j % spectrum.length];
+                    let zMove = map(spectrumValue, 0, 255, -amplitude / 2, amplitude / 2);
+                    let zMoveOpposite = -zMove;
+                    let gradient = spectrumValue / 255;
+                    let gradientColor = lerpColor(color1, color2, gradient);
+                    let gradientColorOpposite = lerpColor(color3, color4, gradient);
+
+                    push();
+                    translate(x, y, zMove);
+                    rotateY(HALF_PI);
+                    stroke(gradientColor);
+                    cylinder(circleRadius, rungSegmentLength);
+                    pop();
+
+                    push();
+                    translate(x, y, zMoveOpposite);
+                    rotateY(HALF_PI);
+                    stroke(gradientColorOpposite);
+                    cylinder(circleRadius, rungSegmentLength);
+                    pop();
+                }
+            }
+        }
+
+        function keyPressed() {
+            if ((key === 's' || key === 'S') && song) {
+                saveCanvas('DNA_Visual', 'png');
+            }
+        }
+    </script>
+</body>
+
+</html>
